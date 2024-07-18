@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Importing vue lib -->
+    <script src="js/utils.js"></script>
+    <script type="module" src="js/layers_config.js"></script>
+    <script type="module" src="js/themes_config.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/legacy_config.js"></script>
+    <script src="js/lib/vue_2.7.14.js"></script>
+    <!-- <script src="js/admin_boundary.js"></script> -->
+    <script src="js/lib/moment.min.js"></script>
+    <!-- importing open layer library and style. -->
+    <link rel="stylesheet" href="css/lib/ol_6.5.0.css">
+    <link rel="stylesheet" href="css/modal.css">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/newStyle.css">
+    <link rel="stylesheet" href="css/story_modal.css">
+    <link rel="stylesheet" href="css/switch.css">
+    <link href="assets/img/icons/favicon.ico" rel="icon">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0"
+        rel="stylesheet">
+    <script src="js/lib/ol_6.5.0.js"></script>
+    <!--add highcharts library from cdn -->
+    <script src="js/lib/highcharts.js"></script>
+    <script src="js/lib/exporting.js"></script>
+    <script src="js/lib/export-data.js"></script>
+    <script src="js/lib/accessibility.js"></script>
+    <script src="js/lib/plotly_latest.min.js"></script>
+    <title>Vedas UVA</title>
+</head>
+<style>
+    #map {
+        height: 96%;
+        width: auto
+    }
+
+    .ol-mouse-position {
+        top: 75px;
+        right: 18px;
+        position: absolute;
+        text-shadow: 1px 1px 12px black;
+        /* color: var(--primary-background); */
+        color: #03128d;
+        font-size: 12px;
+        z-index: 9999;
+        right: 10px;
+        background-color: white;
+        z-index: 9999;
+        padding: 2px 5px;
+        border-radius: 5px;
+    }
+</style>
+
+<body>
+    <!-- <div id="myPlot" style="width:100%;max-width:700px"></div> -->
+    <!-- <script>
+        const xArray = [55, 49, 44, 24, 15];
+        const yArray = ["Italy ", "France ", "Spain ", "USA ", "Argentina "];
+
+        const data = [{
+            x: xArray,
+            y: yArray,
+            type: "bar",
+            orientation: "h",
+            marker: { color: "rgba(255,0,0,0.6)" }
+        }];
+
+        const layout = { title: "World Wide Wine Production" };
+
+        Plotly.newPlot("myPlot", data, layout);
+    </script> -->
+    <div id="app">
+        <div class="header">
+
+            <div class="header-left header-desktop" style="font-weight:normal; color: #f96f25;">
+                VEDAS&nbsp;&nbsp;
+                <span class="text-gradient">{{appTitle}}</span>
+            </div>
+            <div class="header-left header-mobile" style="font-weight:normal; color: #f96f25;">
+                VEDAS&nbsp;&nbsp;<strong class="text-gradient">UVA</strong>
+            </div>
+            <div class="header-center"></div>
+            <div class="header-right">
+                <a href="https://www.sac.gov.in">
+                    <img src="assets/img/logo/sac.png" alt="ISRO Logo" />
+                </a>
+                <a href="https://www.isro.gov.in">
+                    <img src="assets/img/logo/ISRO_logo.png" alt="ISRO Logo" />
+                </a>
+            </div>
+        </div>
+        <!-- Buttons like compare/swipe, share and toggle laye controller box -->
+        <div class="action-buttons">
+            <div class="layer-control-icons">
+                <span @click='isShowLayersPanel = !isShowLayersPanel'
+                    class="material-symbols-outlined fab-action-button-layer" title="Toggle layer panel"
+                    :class="[isShowLayersPanel? 'layer-on':'layer-off' ]">layers</span>
+                <!-- :class=" [isShowLayersPanel? 'toggle-layer ' :'' ]" -->
+                <span @click="prepareStoryId()" class="material-symbols-outlined fab-action-button"
+                    title="Share">share</span>
+                <span v-if="!showSwipePanel" @click="openSwipe()" class="material-symbols-outlined fab-action-button"
+                    title="Swipe">compare</span>
+                <span v-if="showSwipePanel" @click="closeSwipe()" style="background-color:crimson; color:white;"
+                    class="material-symbols-outlined fab-action-button" title="Swipe">compare</span>
+                <span class="material-symbols-outlined fab-action-button" title="Help"
+                    onclick="window.open('Satellite Data Visualization (NRT).pdf');">help</span>
+            </div>
+        </div>
+        <!-- <iframe
+            src="//docs.google.com/gview?url=https://vedas.sac.gov.in/vstatic/vedas_visualization_test/Satellite_data_visualization_usermanual.pptx&embedded=true"
+            style="width:600px; height:500px;" frameborder="0"></iframe> -->
+        <!-- On click compare/swipe panel opens a swipe panel where user can move layer from left to right for analysis. -->
+        <div id="swipePanel" v-if="showSwipePanel">
+            <div style="display:flex;">
+                <span style="color:grey; flex-grow:0;">Swipe</span>&nbsp;&nbsp;
+                <select v-model="swipeLayerConfigId" style="margin-right:20px;" @change="openSwipe()">
+                    <option v-for="(layer,id) in selectedLayerConfigToShow" :value="id" v-if="layer.isShow" :key="id">
+                        {{layer.displayName}}
+                    </option>
+                </select>
+            </div>
+            <div>
+                <input @input="renderMap()" id="swipeInput" type="range" min="0" max="100" step="1"
+                    style="width:100%; margin-right:20px;" />
+            </div>
+        </div>
+        <div id='layer-controller' v-show="isShowLayersPanel">
+            <div id="heading-row">
+                <div class="heading-col layer-panel" @click="isShowLayersPanel=false" title="Toggle layer panel">
+                    <svg height="34" viewBox="0 -960 960 960" width="24">
+                        <path
+                            d="M480-118 120-398l66-50 294 228 294-228 66 50-360 280Zm0-202L120-600l360-280 360 280-360 280Zm0-280Zm0 178 230-178-230-178-230 178 230 178Z" />
+                    </svg>
+                    <span class="heading-span">Layers</span>
+                </div>
+                <div class="heading-col"><button class="btn" @click="showThemeCatalogue=true"> + &nbsp;Add121
+                        Layer</button></div>
+            </div>
+            <div id="container">
+                <div class="layer-row" v-for="(layer,id) in selectedLayerConfigToShow">
+                    <div class="layer">
+                        <div class="layer-name">{{layer.displayName}}</div>
+                        <div style="min-width: 50px;">
+                            <span class=" material-symbols-outlined-arrow fab-action-arrow span-arrow"
+                                title="Move layer up" @click="swapLayers('increase',id)">
+                                arrow_upward
+                            </span>
+                            <span class="material-symbols-outlined-arrow fab-action-arrow span-arrow"
+                                title="Move layer down" @click="swapLayers('decrease',id)">
+                                arrow_downward
+                            </span>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" :id="id" :key="id" v-model="layer.isShow" @change="toggleLayer(id)">
+                            <span class="slider round"></span>
+                        </label>
+                        <span style='flex:0' @click="removeLayer(id)"
+                            class="material-symbols-outlined-close fab-action-button-close" title="Close">close</span>
+                    </div>
+                    <!-- {{layer.parameters}} -->
+                    <div class="layer-submenu" v-show="layer.isShow">
+                        <div class='layer-param' v-for="(param,param_key) of layer.parameters ">
+                            <span class="lbl" :style="param.displayNameStyle">{{param.displayName}}</span>
+
+
+
+                            <select @change='updateLayerHelper(id,param_key)' v-model="param.selectedOption"
+                                v-if="param.type=='choice'" :style="param.style">
+                                <option v-for="option in param.options" :value="option" :title="option.title">
+                                    {{option?option.lbl:''}}
+                                </option>
+                            </select>
+                            <button style="border-radius: 5px;" @click="changeDate(param,'prev');updateLayerHelper(id)"
+                                v-if="param.type=='calendar'">
+                                &lt;
+                            </button>
+                            <input type="date" @change='updateLayerHelper(id)' v-model="param.selectedOption.val"
+                                v-if="param.type=='calendar'">
+                            <input type="color" @input='updateLayerHelper(id)' v-model="param.selectedOption.val"
+                                v-if="param.type=='color'">
+                            <input type="number" @input='updateLayerHelper(id)' @keydown='updateLayerHelper(id)'
+                                :style="param.style" v-model="param.selectedOption.val" v-if="param.type=='number'"
+                                :min="param.minVal" :max="param.maxVal" :step="param.step">
+
+                            <button style="border-radius: 5px;" @click="changeDate(param,'next');updateLayerHelper(id)"
+                                v-if="param.type=='calendar'">
+                                &gt;
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- on click add layer, displays layer catalogue to add layer for analysis -->
+        <div id="myModal" class="modal" v-if="showThemeCatalogue"
+            :class="[showThemeCatalogue? 'modal-display-block':'modal-display-none' ]">
+            <!-- Modal content -->
+            <div class="modal-content">
+                <div class="modal-header">
+                    <span class="material-symbols-outlined fab-action-button" class="back-arrow" title="Back"
+                        v-show="!isShowThemes" @click="isShowThemes=true">arrow_back</span>
+                    <input type="text" v-model="searchContent" placeholder="Search.." class="search-text"
+                        @keyup.enter="searchContent">
+                    <span class="close" @click='showThemeCatalogue=false;isShowThemes=true'>&times;</span>
+                </div>
+                <!-- if searched for layer in serach box. Displays filtered layers -->
+                <div class="sub-theme-menu" v-if="filteredList">
+                    <div class="subtheme-layer" v-for='layer in filteredList'>
+                        <span>{{layer.displayName}} </span>
+                        <button class="btn" @click="pushLayer(layer.id)"> +
+                            &nbsp;Add
+                            Layer</button>
+                    </div>
+                </div>
+
+
+
+                <!-- <div class="theme-row" v-show="isShowThemes && !filteredList">
+                    <div class="theme" v-for="theme in layerThemes" style="background-color: #708099;">
+                        <div
+                            style="filter:brightness(0.30); height:100%; border-radius:25px;position:fixed; left:0; top:0;">
+                        </div>
+                        <div style="transform: translate(0px,-200px)" class="theme-content">
+                            <div class="theme-name">{{theme.name}}</div>
+                            <div class='subtheme-name' v-for="sub_theme in theme.subtheme"
+                                @click='sub_theme.isShow_subtheme=true;isShowThemes=false;selectedSubTheme=sub_theme'>
+                                {{sub_theme.displayName}}
+                            </div>
+                        </div>
+                    </div>
+                </div> -->
+
+
+                <!-- <div style="display: flex;gap:20px;    padding: 15px 5px;flex-wrap: wrap;" class="theme-row"
+                    v-show="isShowThemes && !filteredList">
+                    <div v-for="theme in layerThemes" class="new-theme">
+                        <div style="display:flex; " class="theme-name">
+                            {{theme.name}}
+                        </div>
+                        <div class='subtheme-name' v-for="sub_theme in theme.subtheme"
+                            @click='sub_theme.isShow_subtheme=true;isShowThemes=false;selectedSubTheme=sub_theme'>
+                            {{sub_theme.displayName}}
+                        </div>
+
+                    </div>
+
+
+                </div> -->
+                <div class="themes" v-show="isShowThemes && !filteredList">
+                    <div v-for="theme in layerThemes" class="new-sub-theme">
+                        <div class="theme-name">
+                            {{theme.name}}
+                        </div>
+                        <div class='subtheme-name' v-for="sub_theme in theme.subtheme"
+                            @click='sub_theme.isShow_subtheme=true;isShowThemes=false;selectedSubTheme=sub_theme'>
+                            {{sub_theme.displayName}}
+                        </div>
+
+                    </div>
+
+
+                </div>
+
+                <div class="sub-theme-menu" v-show="!isShowThemes">
+                    <div class="subtheme-layer" v-for="layer in selectedSubTheme.layers">
+                        <span>{{layer.displayName}} </span>
+                        <button class="btn" @click="pushLayer(layer.id)"> + &nbsp; Add Layer
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- On share modal opens to with link to share and copy option -->
+        <div class='story-modal' :class="[isShowStoryModal? 'modal-display-block':'modal-display-none' ]">
+            <div class="story-modal-content">
+                <div class="story-text">
+                    <div style="flex:1"> Your shareable story link is : </div>
+                    <div class="story-close" @click='isShowStoryModal=false;'>&times;</div>
+                </div>
+                <div style="border: 1px solid rgb(153, 153, 153);
+                border-radius: 20px;
+                display: flex;
+                align-items: center;
+                padding: 10px;">
+                    <textarea id="auto_resize" ref="textarea" readonly>{{storyLink}}</textarea>
+                    <span @click="navigator.clipboard.writeText(storyLink);"
+                        class="material-symbols-outlined fab-action-button story-copy"
+                        style="font-size: 30px;">content_copy</span>
+                </div>
+            </div>
+        </div>
+        <div id='map'>
+            <a href="https://www.vedas.sac.gov.in">
+                <img class="vedas-logo" src="assets/img/logo/vedas_logo.png" alt="Vedas Logo">
+            </a>
+        </div>
+        <div id="mouse-position"></div>
+        <div class="footer">
+            Copyright © 2023 - All Rights Reserved - Official website of VEDAS, SAC, ISRO, Government of India
+        </div>
+    </div>
+</body>
+<script type='module' src="js/app.js"></script>
+<script type="text/javascript" src="js/lib/google_analytics.js"></script>
+
+</html>
